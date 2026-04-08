@@ -1,0 +1,20 @@
+<div class="flex min-h-screen flex-col">
+  <header class="border-b border-slate-800 bg-slate-900/90">
+    <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
+      <a routerLink="/" class="text-lg font-semibold tracking-tight text-white">{{ title() }}</a>
+      <nav class="ml-auto flex flex-wrap gap-2 text-sm">
+        <a routerLink="/cars" routerLinkActive="bg-emerald-600 text-white" class="rounded-md bg-slate-800 px-3 py-1.5 text-slate-300">Cars</a>
+        <a routerLink="/drivers" routerLinkActive="bg-emerald-600 text-white" class="rounded-md bg-slate-800 px-3 py-1.5 text-slate-300">Drivers</a>
+        <a routerLink="/trips" routerLinkActive="bg-emerald-600 text-white" class="rounded-md bg-slate-800 px-3 py-1.5 text-slate-300">Trips</a>
+        <a routerLink="/report" routerLinkActive="bg-emerald-600 text-white" class="rounded-md bg-slate-800 px-3 py-1.5 text-slate-300">Monthly report</a>
+        <a routerLink="/auth" routerLinkActive="bg-emerald-600 text-white" class="rounded-md bg-slate-800 px-3 py-1.5 text-slate-300">Sign in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+    <router-outlet />
+  </main>
+
+  <footer class="border-t border-slate-800 py-4 text-center text-xs text-slate-500">Angular + Tailwind + Express API</footer>
+</div>
