@@ -1,101 +1,33 @@
-import { Component } from '@angular/core';
-import { DatePipe, NgFor, NgIf } from '@angular/common';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../api.service';
 import { Car, Driver, Trip } from '../models';
+import { formatApiError } from '../api-error.util';
+
+type TripEditRow = {
+  id: number;
+  date: string;
+  type: string;
+  from: string;
+  to: string;
+  distance: number;
+  endKm: number;
+};
 
 @Component({
   selector: 'app-trips-page',
   standalone: true,
-  imports: [FormsModule, NgFor, NgIf, DatePipe],
+  imports: [FormsModule, DatePipe],
   template: `
     <section class="space-y-4">
       <h1 class="text-2xl font-semibold">Trips</h1>
 
-      <form
-        class="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4 md:grid-cols-2"
-        (ngSubmit)="createTrip()"
-      >
-        <select
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="form.carId"
-          name="carId"
-          required
-        >
-          <option [ngValue]="undefined">Select car</option>
-          <option *ngFor="let c of cars" [ngValue]="c.id">{{ c.licensePlate }} ó {{ c.type }}</option>
-        </select>
-        <select
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="form.driverId"
-          name="driverId"
-          required
-        >
-          <option [ngValue]="undefined">Select driver</option>
-          <option *ngFor="let d of validDrivers" [ngValue]="d.id">{{ d.name }}</option>
-        </select>
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="date"
-          [(ngModel)]="form.date"
-          name="date"
-          required
-        />
-        <select
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="form.type"
-          name="type"
-          required
-        >
-          <option value="BUSINESS">Business</option>
-          <option value="PRIVATE">Private</option>
-        </select>
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="form.from"
-          name="from"
-          placeholder="Departure"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="form.to"
-          name="to"
-          placeholder="Destination"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="number"
-          step="0.1"
-          [(ngModel)]="form.distance"
-          name="distance"
-          placeholder="Distance (km)"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="number"
-          [(ngModel)]="form.endKm"
-          name="endKm"
-          placeholder="New odometer (km)"
-          required
-        />
-        <label class="inline-flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
-          <input type="checkbox" [(ngModel)]="form.createReturnTrip" name="createReturnTrip" />
-          Register return trip automatically
-        </label>
-        <button class="rounded bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-500 md:col-span-2">
-          Save trip
-        </button>
-      </form>
-
-      <div
-        *ngIf="error"
-        class="rounded border border-rose-600/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
-      >
-        {{ error }}
-      </div>
+      @if (error()) {
+        <div class="rounded border border-rose-600/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+          {{ error() }}
+        </div>
+      }
 
       <div class="overflow-x-auto rounded-xl border border-slate-800">
         <table class="min-w-full text-sm">
@@ -108,86 +40,235 @@ import { Car, Driver, Trip } from '../models';
               <th class="px-3 py-2">Odometer</th>
               <th class="px-3 py-2">Car</th>
               <th class="px-3 py-2">Driver</th>
-              <th class="px-3 py-2">Actions</th>
+              @if (isLoggedIn()) {
+                <th class="px-3 py-2">Actions</th>
+              }
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let t of trips" class="border-t border-slate-800">
-              <td class="px-3 py-2">{{ t.date | date: 'yyyy-MM-dd' }}</td>
-              <td class="px-3 py-2">{{ t.type }}</td>
-              <td class="px-3 py-2">{{ t.from }} ? {{ t.to }}</td>
-              <td class="px-3 py-2">{{ t.distance }}</td>
-              <td class="px-3 py-2">{{ t.endKm }}</td>
-              <td class="px-3 py-2">{{ t.car.licensePlate }}</td>
-              <td class="px-3 py-2">{{ t.driver.name }}</td>
-              <td class="space-x-2 px-3 py-2">
-                <button class="rounded bg-slate-700 px-2 py-1" (click)="edit(t)">Edit</button>
-                <button class="rounded bg-rose-700 px-2 py-1" (click)="remove(t.id)">Delete</button>
-              </td>
-            </tr>
+            @for (t of trips(); track t.id) {
+              <tr class="border-t border-slate-800">
+                <td class="px-3 py-2">{{ t.date | date: 'yyyy-MM-dd' }}</td>
+                <td class="px-3 py-2">{{ t.type }}</td>
+                <td class="px-3 py-2">{{ t.from }} ? {{ t.to }}</td>
+                <td class="px-3 py-2">{{ t.distance }}</td>
+                <td class="px-3 py-2">{{ t.endKm }}</td>
+                <td class="px-3 py-2">{{ t.car.licensePlate }}</td>
+                <td class="px-3 py-2">{{ t.driver.name }}</td>
+                @if (isLoggedIn()) {
+                  <td class="space-x-2 px-3 py-2">
+                    <button type="button" class="rounded bg-slate-700 px-2 py-1" (click)="edit(t)">Edit</button>
+                    <button type="button" class="rounded bg-rose-700 px-2 py-1" (click)="remove(t.id)">Delete</button>
+                  </td>
+                }
+              </tr>
+            }
           </tbody>
         </table>
       </div>
 
+      @if (isLoggedIn()) {
       <form
-        *ngIf="editing"
-        class="grid gap-3 rounded-xl border border-slate-700 bg-slate-900/60 p-4 md:grid-cols-2"
-        (ngSubmit)="saveEdit()"
+        class="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4 md:grid-cols-2"
+        (ngSubmit)="createTrip()"
       >
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="date"
-          [(ngModel)]="editing.date"
-          name="ed"
-          required
-        />
-        <select
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="editing.type"
-          name="et"
-        >
-          <option value="BUSINESS">BUSINESS</option>
-          <option value="PRIVATE">PRIVATE</option>
-        </select>
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="editing.from"
-          name="ef"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          [(ngModel)]="editing.to"
-          name="eto"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="number"
-          [(ngModel)]="editing.distance"
-          name="edis"
-          required
-        />
-        <input
-          class="rounded border border-slate-700 bg-slate-950 px-3 py-2"
-          type="number"
-          [(ngModel)]="editing.endKm"
-          name="ekm"
-          required
-        />
-        <div class="space-x-2 md:col-span-2">
-          <button class="rounded bg-emerald-600 px-3 py-2">Save</button>
-          <button type="button" class="rounded bg-slate-700 px-3 py-2" (click)="editing = null">Cancel</button>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-car">Car</label>
+          <select
+            id="trip-car"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            [(ngModel)]="form.carId"
+            name="carId"
+            required
+          >
+            <option [ngValue]="undefined">Select car</option>
+            @for (c of cars(); track c.id) {
+              <option [ngValue]="c.id">{{ c.licensePlate }} ù {{ c.type }}</option>
+            }
+          </select>
         </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-driver">Driver</label>
+          <select
+            id="trip-driver"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            [(ngModel)]="form.driverId"
+            name="driverId"
+            required
+          >
+            <option [ngValue]="undefined">Select driver</option>
+            @for (d of validDrivers(); track d.id) {
+              <option [ngValue]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-date">Date</label>
+          <input
+            id="trip-date"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            type="date"
+            [(ngModel)]="form.date"
+            name="date"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-type">Trip type</label>
+          <select
+            id="trip-type"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            [(ngModel)]="form.type"
+            name="type"
+            required
+          >
+            <option value="BUSINESS">Business</option>
+            <option value="PRIVATE">Private</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-from">Departure</label>
+          <input
+            id="trip-from"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            [(ngModel)]="form.from"
+            name="from"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-to">Destination</label>
+          <input
+            id="trip-to"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            [(ngModel)]="form.to"
+            name="to"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-dist">Distance (km)</label>
+          <input
+            id="trip-dist"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            type="number"
+            step="0.1"
+            [(ngModel)]="form.distance"
+            name="distance"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="trip-endkm">New odometer (km)</label>
+          <input
+            id="trip-endkm"
+            class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+            type="number"
+            [(ngModel)]="form.endKm"
+            name="endKm"
+            required
+          />
+        </div>
+        <label class="inline-flex items-center gap-2 text-sm text-slate-300 md:col-span-2" for="trip-return">
+          <input id="trip-return" type="checkbox" [(ngModel)]="form.createReturnTrip" name="createReturnTrip" />
+          Register return trip automatically
+        </label>
+        <button
+          type="submit"
+          class="rounded bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-500 md:col-span-2"
+        >
+          Save trip
+        </button>
       </form>
+      }
+
+      @if (isLoggedIn() && editing(); as ed) {
+        <form
+          class="grid gap-3 rounded-xl border border-slate-700 bg-slate-900/60 p-4 md:grid-cols-2"
+          (ngSubmit)="saveEdit()"
+        >
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-date">Date</label>
+            <input
+              id="etrip-date"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              type="date"
+              [(ngModel)]="ed.date"
+              name="ed"
+              required
+            />
+          </div>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-type">Trip type</label>
+            <select
+              id="etrip-type"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              [(ngModel)]="ed.type"
+              name="et"
+            >
+              <option value="BUSINESS">BUSINESS</option>
+              <option value="PRIVATE">PRIVATE</option>
+            </select>
+          </div>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-from">Departure</label>
+            <input
+              id="etrip-from"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              [(ngModel)]="ed.from"
+              name="ef"
+              required
+            />
+          </div>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-to">Destination</label>
+            <input
+              id="etrip-to"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              [(ngModel)]="ed.to"
+              name="eto"
+              required
+            />
+          </div>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-dist">Distance (km)</label>
+            <input
+              id="etrip-dist"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              type="number"
+              [(ngModel)]="ed.distance"
+              name="edis"
+              required
+            />
+          </div>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <label class="shrink-0 text-sm text-slate-300 sm:w-36" for="etrip-km">Odometer (km)</label>
+            <input
+              id="etrip-km"
+              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2"
+              type="number"
+              [(ngModel)]="ed.endKm"
+              name="ekm"
+              required
+            />
+          </div>
+          <div class="space-x-2 md:col-span-2">
+            <button type="submit" class="rounded bg-emerald-600 px-3 py-2">Save</button>
+            <button type="button" class="rounded bg-slate-700 px-3 py-2" (click)="editing.set(null)">Cancel</button>
+          </div>
+        </form>
+      }
     </section>
   `,
 })
 export class TripsPageComponent {
-  cars: Car[] = [];
-  drivers: Driver[] = [];
-  trips: Trip[] = [];
-  error = '';
+  private readonly api = inject(ApiService);
+  readonly isLoggedIn = this.api.isLoggedIn;
+  readonly cars = signal<Car[]>([]);
+  readonly drivers = signal<Driver[]>([]);
+  readonly trips = signal<Trip[]>([]);
+  readonly validDrivers = computed(() => this.drivers().filter((d) => !d.isExpired));
+  readonly error = signal('');
   form: {
     carId?: number;
     driverId?: number;
@@ -207,37 +288,42 @@ export class TripsPageComponent {
     endKm: 0,
     createReturnTrip: false,
   };
-  editing: {
-    id: number;
-    date: string;
-    type: string;
-    from: string;
-    to: string;
-    distance: number;
-    endKm: number;
-  } | null = null;
+  readonly editing = signal<TripEditRow | null>(null);
 
-  get validDrivers(): Driver[] {
-    return this.drivers.filter((d) => !d.isExpired);
-  }
-
-  constructor(private readonly api: ApiService) {
+  constructor() {
     this.loadAll();
+    effect(() => {
+      if (!this.api.isLoggedIn()) {
+        this.editing.set(null);
+      }
+    });
   }
 
   loadAll(): void {
-    this.api.get<Car[]>('/cars').subscribe({ next: (r) => (this.cars = r) });
-    this.api.get<Driver[]>('/drivers').subscribe({ next: (r) => (this.drivers = r) });
+    this.api.get<Car[]>('/cars').subscribe({
+      next: (cars) => {
+        this.cars.set(cars);
+        this.error.set('');
+      },
+      error: (e) => this.error.set(formatApiError(e, 'Failed to load cars')),
+    });
+    this.api.get<Driver[]>('/drivers').subscribe({
+      next: (drivers) => {
+        this.drivers.set(drivers);
+        this.error.set('');
+      },
+      error: (e) => this.error.set(formatApiError(e, 'Failed to load drivers')),
+    });
     this.loadTrips();
   }
 
   loadTrips(): void {
     this.api.get<Trip[]>('/trips').subscribe({
       next: (trips) => {
-        this.trips = trips;
-        this.error = '';
+        this.trips.set(trips);
+        this.error.set('');
       },
-      error: (e) => (this.error = e.error?.error ?? 'Failed to load trips'),
+      error: (e) => this.error.set(formatApiError(e, 'Failed to load trips')),
     });
   }
 
@@ -253,14 +339,15 @@ export class TripsPageComponent {
           endKm: 0,
           createReturnTrip: false,
         };
-        this.loadTrips();
+        this.loadAll();
       },
-      error: (e) => (this.error = e.error?.error ?? 'Could not save trip'),
+      error: (e) => this.error.set(formatApiError(e, 'Could not save trip')),
     });
   }
 
   edit(t: Trip): void {
-    this.editing = {
+    this.error.set('');
+    this.editing.set({
       id: t.id,
       date: String(t.date).slice(0, 10),
       type: t.type,
@@ -268,24 +355,25 @@ export class TripsPageComponent {
       to: t.to,
       distance: t.distance,
       endKm: t.endKm,
-    };
+    });
   }
 
   saveEdit(): void {
-    if (!this.editing) return;
-    this.api.put(`/trips/${this.editing.id}`, this.editing).subscribe({
+    const e = this.editing();
+    if (!e) return;
+    this.api.put(`/trips/${e.id}`, e).subscribe({
       next: () => {
-        this.editing = null;
+        this.editing.set(null);
         this.loadTrips();
       },
-      error: (e) => (this.error = e.error?.error ?? 'Could not update trip'),
+      error: (err) => this.error.set(formatApiError(err, 'Could not update trip')),
     });
   }
 
   remove(id: number): void {
     this.api.delete(`/trips/${id}`).subscribe({
       next: () => this.loadTrips(),
-      error: (e) => (this.error = e.error?.error ?? 'Could not delete trip'),
+      error: (e) => this.error.set(formatApiError(e, 'Could not delete trip')),
     });
   }
 }

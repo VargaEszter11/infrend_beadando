@@ -1,10 +1,14 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   readonly baseUrl = 'http://localhost:3000';
+
+  private readonly authLoggedIn = signal(!!localStorage.getItem('token'));
+  /** True when a session token is stored; kept in sync with setToken/clearToken. */
+  readonly isLoggedIn = this.authLoggedIn.asReadonly();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -14,10 +18,12 @@ export class ApiService {
 
   setToken(token: string): void {
     localStorage.setItem('token', token);
+    this.authLoggedIn.set(true);
   }
 
   clearToken(): void {
     localStorage.removeItem('token');
+    this.authLoggedIn.set(false);
   }
 
   private authHeaders(): { headers: HttpHeaders } {
