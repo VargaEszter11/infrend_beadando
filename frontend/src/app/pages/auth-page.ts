@@ -8,14 +8,15 @@ import { formatApiError } from '../api-error.util';
   standalone: true,
   imports: [FormsModule],
   template: `
-    <section class="space-y-4">
-      <h1 class="text-2xl font-semibold">Sign in</h1>
+    <div class="mx-auto w-full max-w-xl py-4">
+      <section class="space-y-4">
+        <h1 class="text-2xl font-semibold">Sign in</h1>
 
-      @if (!isLoggedIn()) {
+        @if (!isLoggedIn()) {
         <p class="text-sm text-slate-400">Sign in to create, update, or delete records.</p>
 
         <form
-          class="grid max-w-xl gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4"
+          class="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4"
           (ngSubmit)="login()"
         >
           <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
@@ -44,26 +45,27 @@ import { formatApiError } from '../api-error.util';
             <button type="button" class="rounded bg-slate-700 px-4 py-2" (click)="register()">Register</button>
           </div>
         </form>
-      }
+        }
 
-      @if (isLoggedIn()) {
-        <div class="max-w-xl space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+        @if (isLoggedIn()) {
+        <div class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p class="text-sm text-slate-300">You are signed in.</p>
           <button type="button" class="rounded bg-rose-700 px-4 py-2" (click)="logout()">Log out</button>
         </div>
-      }
+        }
 
-      @if (message()) {
+        @if (message()) {
         <div class="rounded border border-sky-700/40 bg-sky-950/40 px-3 py-2 text-sm text-sky-300">
           {{ message() }}
         </div>
-      }
-      @if (error()) {
+        }
+        @if (error()) {
         <div class="rounded border border-rose-600/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
           {{ error() }}
         </div>
-      }
-    </section>
+        }
+      </section>
+    </div>
   `,
 })
 export class AuthPageComponent {
